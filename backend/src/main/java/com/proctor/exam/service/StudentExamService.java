@@ -404,7 +404,8 @@ public class StudentExamService {
                     if (ea.getCodeSubmission() != null && !ea.getCodeSubmission().isBlank()) {
                         savedCodingAnswers.put(qid, new StartExamResponse.SavedCodeAnswer(ea.getCodeSubmission(), ea.getCodeLanguage()));
                         // A coding question is ONLY completed when test cases were passed or finalized, not from drafts
-                        boolean isCodingCompleted = Boolean.TRUE.equals(ea.getIsCorrect()) ||
+                        boolean isCodingCompleted = Boolean.TRUE.equals(ea.getIsFinalized()) ||
+                                Boolean.TRUE.equals(ea.getIsCorrect()) ||
                                 (ea.getTotalTestCases() != null && ea.getTotalTestCases() > 0 &&
                                  ea.getTestCasesPassed() != null && ea.getTestCasesPassed().equals(ea.getTotalTestCases()));
                         if (isCodingCompleted) {
@@ -495,7 +496,8 @@ public class StudentExamService {
                 throw new ApiException(HttpStatus.BAD_REQUEST, "Question " + req.questionId() + " has already been completed and locked. It cannot be modified or attempted again.");
             }
             // For coding questions, only lock if test cases were all passed and finalized
-            boolean isCodingLocked = Boolean.TRUE.equals(answer.getIsCorrect()) ||
+            boolean isCodingLocked = Boolean.TRUE.equals(answer.getIsFinalized()) ||
+                    Boolean.TRUE.equals(answer.getIsCorrect()) ||
                     (answer.getTotalTestCases() != null && answer.getTotalTestCases() > 0 &&
                      answer.getTestCasesPassed() != null && answer.getTestCasesPassed().equals(answer.getTotalTestCases()));
             if (isCodingLocked && req.codeSubmission() != null && !answer.getCodeSubmission().equals(req.codeSubmission())) {
@@ -511,6 +513,9 @@ public class StudentExamService {
         if (req.codeSubmission() != null) {
             answer.setCodeSubmission(req.codeSubmission());
             answer.setCodeLanguage(req.codeLanguage());
+        }
+        if (Boolean.TRUE.equals(req.isFinalized())) {
+            answer.setIsFinalized(true);
         }
         answer.setAnsweredAt(trustedTimeService.now());
         answerRepository.save(answer);
@@ -590,6 +595,7 @@ public class StudentExamService {
                         awarded = q.getMarks();
                     }
                     a.setMarksAwarded(awarded);
+                    a.setIsFinalized(true);
                     score = score.add(awarded);
                     answerRepository.save(a);
                 }

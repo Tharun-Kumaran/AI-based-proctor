@@ -2275,7 +2275,7 @@ export default function ExamTake() {
       if (session?.attemptId) {
         await api.post(
           `/api/student/attempts/${session.attemptId}/answers`,
-          { questionId, codeSubmission: currentCode, codeLanguage: currentLang },
+          { questionId, codeSubmission: currentCode, codeLanguage: currentLang, isFinalized: true },
           "student"
         );
       }
@@ -2310,7 +2310,7 @@ export default function ExamTake() {
     if (session?.attemptId) {
       api.post(
         `/api/student/attempts/${session.attemptId}/answers`,
-        { questionId, codeSubmission: code, codeLanguage: language },
+        { questionId, codeSubmission: code, codeLanguage: language, isFinalized: false },
         "student"
       ).catch(() => {});
     }
@@ -2337,7 +2337,7 @@ export default function ExamTake() {
       if (session?.attemptId) {
         api.post(
           `/api/student/attempts/${session.attemptId}/answers`,
-          { questionId, codeSubmission: code, codeLanguage: language },
+          { questionId, codeSubmission: code, codeLanguage: language, isFinalized: false },
           "student"
         ).catch(() => {});
       }

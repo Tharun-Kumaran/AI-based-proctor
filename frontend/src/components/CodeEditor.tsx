@@ -461,7 +461,7 @@ export default function CodeEditor({
       </div>
 
       {/* Bottom Panel: Testcases & Execution Results */}
-      <div className="border-t border-slate-800 bg-slate-900/90 flex flex-col max-h-[320px]">
+      <div className="border-t border-slate-800 bg-slate-900/90 flex flex-col min-h-[220px] max-h-[380px]">
         {/* Bottom Drawer Tabs */}
         <div className="flex items-center justify-between px-3 border-b border-slate-800 bg-slate-900">
           <div className="flex items-center gap-1">
@@ -510,7 +510,7 @@ export default function CodeEditor({
         </div>
 
         {/* Tab Content */}
-        <div className="p-3 overflow-y-auto text-xs">
+        <div className="p-3 pb-12 overflow-y-auto text-xs flex-1">
           {bottomTab === "testcases" && (
             <div>
               {useCustomInput ? (
@@ -546,7 +546,7 @@ export default function CodeEditor({
 
                   {/* Active Case Details */}
                   {sampleTestCases[activeCaseIdx] && (
-                    <div className="space-y-2 font-mono">
+                    <div className="space-y-3 font-mono pb-8">
                       <div>
                         <div className="text-[11px] font-sans font-semibold text-slate-400 mb-1">Input:</div>
                         <pre className="bg-slate-950 border border-slate-800 rounded-md p-2 text-slate-300 overflow-x-auto whitespace-pre-wrap">
@@ -591,7 +591,7 @@ export default function CodeEditor({
                   <pre className="text-xs whitespace-pre-wrap font-mono">{runError}</pre>
                 </div>
               ) : runResult ? (
-                <div className="space-y-3 font-mono">
+                <div className="space-y-3 font-mono pb-8">
                   {/* Status header banner */}
                   <div className="flex items-center justify-between flex-wrap gap-2 pb-2 border-b border-slate-800">
                     <div className="flex items-center gap-2">

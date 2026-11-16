@@ -8,5 +8,10 @@ public record SubmitAnswerRequest(
         @NotNull Long questionId,
         @Min(0) @Max(3) Short selectedOption,
         String codeSubmission,
-        String codeLanguage
-) {}
+        String codeLanguage,
+        Boolean isFinalized
+) {
+    public SubmitAnswerRequest(Long questionId, Short selectedOption, String codeSubmission, String codeLanguage) {
+        this(questionId, selectedOption, codeSubmission, codeLanguage, false);
+    }
+}

@@ -1757,8 +1757,16 @@ public class ExamAdminService {
                     List<ExamAnswer> answers = answerRepository.findByAttemptId(bestAttempt.getId());
                     for (ExamAnswer ans : answers) {
                         if (ans.getQuestion() != null && coordQidsForThisExam.contains(ans.getQuestion().getId())) {
-                            boolean isDone = ans.getSelectedOption() != null
-                                    || (ans.getCodeSubmission() != null && !ans.getCodeSubmission().trim().isEmpty());
+                            boolean isCoding = "CODING".equalsIgnoreCase(ans.getQuestion().getQuestionType());
+                            boolean isDone;
+                            if (isCoding) {
+                                isDone = Boolean.TRUE.equals(ans.getIsFinalized())
+                                        || Boolean.TRUE.equals(ans.getIsCorrect())
+                                        || (ans.getTotalTestCases() != null && ans.getTotalTestCases() > 0
+                                            && ans.getTestCasesPassed() != null && ans.getTestCasesPassed().equals(ans.getTotalTestCases()));
+                            } else {
+                                isDone = ans.getSelectedOption() != null;
+                            }
                             if (isDone) {
                                 completed++;
                             }
@@ -1868,8 +1876,16 @@ public class ExamAdminService {
                 List<ExamAnswer> answers = answerRepository.findByAttemptId(bestAttempt.getId());
                 for (ExamAnswer ans : answers) {
                     if (ans.getQuestion() != null && allQuestionIds.contains(ans.getQuestion().getId())) {
-                        boolean isDone = ans.getSelectedOption() != null
-                                || (ans.getCodeSubmission() != null && !ans.getCodeSubmission().trim().isEmpty());
+                        boolean isCoding = "CODING".equalsIgnoreCase(ans.getQuestion().getQuestionType());
+                        boolean isDone;
+                        if (isCoding) {
+                            isDone = Boolean.TRUE.equals(ans.getIsFinalized())
+                                    || Boolean.TRUE.equals(ans.getIsCorrect())
+                                    || (ans.getTotalTestCases() != null && ans.getTotalTestCases() > 0
+                                        && ans.getTestCasesPassed() != null && ans.getTestCasesPassed().equals(ans.getTotalTestCases()));
+                        } else {
+                            isDone = ans.getSelectedOption() != null;
+                        }
                         if (isDone) {
                             completed++;
                         }

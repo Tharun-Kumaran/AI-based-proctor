@@ -648,7 +648,12 @@ public class ReportExportService {
             boolean isCoding = "CODING".equalsIgnoreCase(q.getQuestionType());
             boolean isCompleted;
             if (isCoding) {
-                isCompleted = ans != null && ans.getCodeSubmission() != null && !ans.getCodeSubmission().trim().isEmpty();
+                isCompleted = ans != null && (
+                        Boolean.TRUE.equals(ans.getIsFinalized())
+                        || Boolean.TRUE.equals(ans.getIsCorrect())
+                        || (ans.getTotalTestCases() != null && ans.getTotalTestCases() > 0
+                            && ans.getTestCasesPassed() != null && ans.getTestCasesPassed().equals(ans.getTotalTestCases()))
+                );
             } else {
                 isCompleted = ans != null && ans.getSelectedOption() != null && ans.getSelectedOption() > 0;
             }

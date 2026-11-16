@@ -57,4 +57,8 @@ public class ExamAnswer {
 
     @Column(name = "execution_output", columnDefinition = "TEXT")
     private String executionOutput;
+
+    @Column(name = "is_finalized", nullable = false)
+    @Builder.Default
+    private Boolean isFinalized = false;
 }
