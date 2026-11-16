@@ -1,4 +1,5 @@
 import { useEffect, useState, useMemo } from "react";
+import * as XLSX from "xlsx";
 import { api } from "../../api/client";
 import type { Exam } from "../../types";
 
@@ -96,39 +97,34 @@ export default function ProfessorStudentReportTab({ exam }: Props) {
       });
   }, [data, search, sortField, sortDirection]);
 
-  // Export to Excel / CSV (exact 5 columns from diagram)
-  function exportToExcel() {
-    if (!filteredStudents.length) return;
-
-    const headers = [
-      "Register number",
-      "name",
-      "Total number of question",
-      "completed",
-      "In complete",
-    ];
-
-    const rows = filteredStudents.map((s) => [
-      `"${(s.registerNumber || "").replace(/"/g, '""')}"`,
-      `"${(s.name || "").replace(/"/g, '""')}"`,
-      s.totalQuestions,
-      s.completedQuestions,
-      s.incompleteQuestions,
-    ]);
-
-    const csvContent =
-      "data:text/csv;charset=utf-8,\uFEFF" +
-      [headers.join(","), ...rows.map((e) => e.join(","))].join("\n");
-
-    const encodedUri = encodeURI(csvContent);
-    const link = document.createElement("a");
-    link.setAttribute("href", encodedUri);
+  // Export to real .xlsx (register numbers stored as text -> no exponent display)
+  function exportXlsx(kind: "all" | "complete" | "incomplete") {
+    const source = kind === "all" ? filteredStudents : (data?.students || []).filter((s) =>
+      kind === "complete" ? s.incompleteQuestions === 0 : s.incompleteQuestions > 0
+    );
+    if (!source.length) {
+      alert(kind === "all" ? "No students to export." : `No ${kind} students found.`);
+      return;
+    }
+    const rows = source.map((s) => ({
+      "Register Number": String(s.registerNumber ?? ""),
+      Name: s.name || "",
+      "Total Questions": s.totalQuestions,
+      Completed: s.completedQuestions,
+      Incomplete: s.incompleteQuestions,
+    }));
+    const ws = XLSX.utils.json_to_sheet(rows);
+    source.forEach((s, i) => {
+      ws[XLSX.utils.encode_cell({ r: i + 1, c: 0 })] = { t: "s", v: String(s.registerNumber ?? ""), z: "@" };
+    });
+    ws["!cols"] = [{ wch: 18 }, { wch: 28 }, { wch: 16 }, { wch: 12 }, { wch: 12 }];
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, kind === "all" ? "Students" : kind === "complete" ? "Complete" : "Incomplete");
     const safeName = (exam.name || "Exam").replace(/[^a-zA-Z0-9_-]/g, "_");
-    link.setAttribute("download", `${safeName}_Professor_Student_Report.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const suffix = kind === "all" ? "Professor_Student_Report" : `${kind}_students`;
+    XLSX.writeFile(wb, `${safeName}_${suffix}.xlsx`);
   }
+  const exportToExcel = () => exportXlsx("all");
 
   // Export / Print to PDF - Clean Report Only
   function exportToPdf() {
@@ -350,10 +346,26 @@ export default function ProfessorStudentReportTab({ exam }: Props) {
             <button
               onClick={exportToExcel}
               className="bg-emerald-600 hover:bg-emerald-500 active:bg-emerald-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl transition shadow-sm flex items-center gap-2 cursor-pointer"
-              title="Download full report as Excel (.csv)"
+              title="Download filtered report as Excel (.xlsx)"
             >
               <span>📊</span>
               <span>Download Excel</span>
+            </button>
+            <button
+              onClick={() => exportXlsx("complete")}
+              className="bg-teal-600 hover:bg-teal-500 active:bg-teal-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl transition shadow-sm flex items-center gap-2 cursor-pointer"
+              title="Download completed students (.xlsx)"
+            >
+              <span>✅</span>
+              <span>Completed (.xlsx)</span>
+            </button>
+            <button
+              onClick={() => exportXlsx("incomplete")}
+              className="bg-amber-600 hover:bg-amber-500 active:bg-amber-700 text-white font-bold text-xs px-4 py-2.5 rounded-xl transition shadow-sm flex items-center gap-2 cursor-pointer"
+              title="Download incomplete students (.xlsx)"
+            >
+              <span>⏳</span>
+              <span>Incomplete (.xlsx)</span>
             </button>
             <button
               onClick={exportToPdf}

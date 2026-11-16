@@ -1,4 +1,5 @@
 import { useState } from "react";
+import * as XLSX from "xlsx";
 import { api, isCoordinatorRole, isAdminRole, isProfessorUserRole } from "../../api/client";
 import type { Exam } from "../../types";
 
@@ -92,6 +93,61 @@ export default function ExamSettingsTab({ exam, onUpdated, onSwitchToQuestions }
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
+
+  const [downloading, setDownloading] = useState<"complete" | "incomplete" | null>(null);
+
+  async function downloadStudentFile(kind: "complete" | "incomplete") {
+    setDownloading(kind);
+    setSaveError(null);
+    setSaveSuccess(null);
+    try {
+      const res = await api.get<{
+        students: Array<{
+          registerNumber: string;
+          name: string;
+          profName: string;
+          department: string;
+          totalQuestions: number;
+          completedQuestions: number;
+          incompleteQuestions: number;
+        }>;
+      }>(`/api/admin/exams/${exam.id}/coordinator-student-report`, "admin");
+
+      const list = (res.students || []).filter((s) =>
+        kind === "complete" ? s.incompleteQuestions === 0 : s.incompleteQuestions > 0
+      );
+      if (list.length === 0) {
+        setSaveError(`No ${kind} students found.`);
+        return;
+      }
+
+      const rows = list.map((s) => ({
+        "Register Number": String(s.registerNumber ?? ""),
+        Name: s.name || "",
+        "Prof Name": s.profName || "",
+        Department: s.department || "",
+        "Total Questions": s.totalQuestions,
+        Completed: s.completedQuestions,
+        Incomplete: s.incompleteQuestions,
+      }));
+      const ws = XLSX.utils.json_to_sheet(rows);
+      // Force register number cells to text so 13-digit numbers don't show as exponent
+      list.forEach((s, i) => {
+        const addr = XLSX.utils.encode_cell({ r: i + 1, c: 0 });
+        ws[addr] = { t: "s", v: String(s.registerNumber ?? ""), z: "@" };
+      });
+      ws["!cols"] = [{ wch: 18 }, { wch: 28 }, { wch: 24 }, { wch: 22 }, { wch: 16 }, { wch: 12 }, { wch: 12 }];
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, kind === "complete" ? "Complete" : "Incomplete");
+      const safeName = (exam.name || "Class").replace(/[^a-zA-Z0-9_-]/g, "_");
+      XLSX.writeFile(wb, `${safeName}_${kind}_students.xlsx`);
+      setSaveSuccess(`Downloaded ${list.length} ${kind} student(s).`);
+    } catch (err) {
+      setSaveError(err instanceof Error ? err.message : "Failed to download student file.");
+    } finally {
+      setDownloading(null);
+    }
+  }
 
   function set<K extends keyof typeof form>(key: K, value: (typeof form)[K]) {
     setForm((f) => ({ ...f, [key]: value }));
@@ -237,6 +293,33 @@ export default function ExamSettingsTab({ exam, onUpdated, onSwitchToQuestions }
           <button onClick={() => setSaveError(null)} className="text-rose-700 hover:text-rose-900 font-bold cursor-pointer">
             ✕
           </button>
+        </div>
+      )}
+
+      {isCoordinator && (
+        <div className="bg-emerald-50/60 border border-emerald-200 rounded-xl p-4 flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <p className="text-sm font-bold text-slate-800">📥 Download Student Files (.xlsx)</p>
+            <p className="text-[11px] text-slate-500">Register numbers are saved as text, so no exponent format in Excel.</p>
+          </div>
+          <div className="flex gap-2">
+            <button
+              type="button"
+              disabled={downloading !== null}
+              onClick={() => downloadStudentFile("complete")}
+              className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-bold cursor-pointer disabled:opacity-50"
+            >
+              {downloading === "complete" ? "Preparing…" : "Completed Students"}
+            </button>
+            <button
+              type="button"
+              disabled={downloading !== null}
+              onClick={() => downloadStudentFile("incomplete")}
+              className="px-4 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-lg text-xs font-bold cursor-pointer disabled:opacity-50"
+            >
+              {downloading === "incomplete" ? "Preparing…" : "Incomplete Students"}
+            </button>
+          </div>
         </div>
       )}
 
