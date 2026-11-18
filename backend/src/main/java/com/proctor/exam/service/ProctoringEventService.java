@@ -21,15 +21,21 @@ public class ProctoringEventService {
     private final ProctoringSessionService sessionService;
     private final ExamAttemptRepository attemptRepository;
     private final RiskEngine riskEngine;
+    private final ExamAnswerRepository answerRepository;
+    private final ExamQuestionRepository questionRepository;
 
     public ProctoringEventService(ProctoringEventRepository eventRepository,
                                   ProctoringSessionService sessionService,
                                   ExamAttemptRepository attemptRepository,
-                                  RiskEngine riskEngine) {
+                                  RiskEngine riskEngine,
+                                  ExamAnswerRepository answerRepository,
+                                  ExamQuestionRepository questionRepository) {
         this.eventRepository = eventRepository;
         this.sessionService = sessionService;
         this.attemptRepository = attemptRepository;
         this.riskEngine = riskEngine;
+        this.answerRepository = answerRepository;
+        this.questionRepository = questionRepository;
     }
 
     /**
@@ -213,10 +219,9 @@ public class ProctoringEventService {
 
     @Transactional(readOnly = true)
     public List<AdminAttemptSummaryResponse> getAttemptsWithEventSummary(Long examId) {
-        return getAttemptsWithEventSummary(examId, null, null, null, null, null);
+        return getAttemptsWithEventSummary(examId != null ? List.of(examId) : null, null, null, null, null, null);
     }
 
-    @Transactional(readOnly = true)
     public List<AdminAttemptSummaryResponse> getAttemptsWithEventSummary(
             Long examId,
             String studentEmail,
@@ -225,8 +230,20 @@ public class ProctoringEventService {
             Instant from,
             Instant to
     ) {
+        return getAttemptsWithEventSummary(examId != null ? List.of(examId) : null, studentEmail, severity, eventType, from, to);
+    }
+
+    @Transactional(readOnly = true)
+    public List<AdminAttemptSummaryResponse> getAttemptsWithEventSummary(
+            List<Long> examIds,
+            String studentEmail,
+            String severity,
+            String eventType,
+            Instant from,
+            Instant to
+    ) {
         org.springframework.data.jpa.domain.Specification<ExamAttempt> spec =
-                com.proctor.exam.repository.ExamAttemptSpecification.filter(examId, studentEmail, severity, eventType, from, to);
+                com.proctor.exam.repository.ExamAttemptSpecification.filter(examIds, studentEmail, severity, eventType, from, to);
         List<ExamAttempt> attempts = attemptRepository.findAll(spec);
         List<AdminAttemptSummaryResponse> results = new ArrayList<>();
 
@@ -248,9 +265,33 @@ public class ProctoringEventService {
             BigDecimal currentScore = riskEngine.computeDecayedRiskScore(allEvents, weights, Instant.now());
             Boolean flagged = Boolean.TRUE.equals(a.getFlaggedForReview());
 
+            int warningStrikes = (int) eventRepository.countByAttemptIdAndEventType(a.getId(), "WARNING_STRIKE");
+
+            List<ExamAnswer> answers = answerRepository.findByAttemptId(a.getId());
+            List<ExamQuestion> questions = questionRepository.findByExamIdOrderByDisplayOrderAsc(a.getExam().getId());
+            int totalQuestions = questions.size();
+            int completedQuestions = 0;
+            for (ExamAnswer ans : answers) {
+                if (ans.getQuestion() != null) {
+                    boolean isCoding = "CODING".equalsIgnoreCase(ans.getQuestion().getQuestionType());
+                    boolean isDone;
+                    if (isCoding) {
+                        isDone = Boolean.TRUE.equals(ans.getIsFinalized())
+                                || Boolean.TRUE.equals(ans.getIsCorrect())
+                                || (ans.getTotalTestCases() != null && ans.getTotalTestCases() > 0
+                                    && ans.getTestCasesPassed() != null && ans.getTestCasesPassed().equals(ans.getTotalTestCases()));
+                    } else {
+                        isDone = ans.getSelectedOption() != null;
+                    }
+                    if (isDone) {
+                        completedQuestions++;
+                    }
+                }
+            }
+
             results.add(new AdminAttemptSummaryResponse(
                     a.getId(),
-                    examId,
+                    a.getExam().getId(),
                     a.getStudentEmail(),
                     a.getAttemptNumber(),
                     a.getStatus(),
@@ -265,7 +306,10 @@ public class ProctoringEventService {
                     severityCounts.getOrDefault("CRITICAL", 0L),
                     currentScore,
                     flagged,
-                    sessionResp
+                    sessionResp,
+                    totalQuestions,
+                    completedQuestions,
+                    warningStrikes
             ));
         }
 

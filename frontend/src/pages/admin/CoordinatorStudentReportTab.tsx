@@ -16,6 +16,9 @@ export interface CoordinatorStudentReportItem {
   attemptStatus?: string;
   warningStrikes?: number;
   isTerminated?: boolean;
+  score?: number | null;
+  riskScore?: number | null;
+  flaggedForReview?: boolean;
 }
 
 export interface CoordinatorStudentReportResponse {
@@ -172,6 +175,10 @@ export default function CoordinatorStudentReportTab({ exam }: Props) {
       "Total number of question",
       "completed",
       "In complete",
+      "Marks Awarded",
+      "Risk Score",
+      "Warning Strikes",
+      "Integrity Status",
     ];
 
     const rows = filteredStudents.map((s) => [
@@ -182,6 +189,10 @@ export default function CoordinatorStudentReportTab({ exam }: Props) {
       s.totalQuestions,
       s.completedQuestions,
       s.incompleteQuestions,
+      s.score !== null && s.score !== undefined ? s.score : "—",
+      s.riskScore !== null && s.riskScore !== undefined ? s.riskScore.toFixed(1) : "—",
+      s.warningStrikes ?? 0,
+      s.flaggedForReview ? "FLAGGED" : "Clear",
     ]);
 
     const csvContent =
@@ -638,7 +649,17 @@ export default function CoordinatorStudentReportTab({ exam }: Props) {
                   </div>
                 </th>
 
-                {/* 8. Status & Re-Access Action */}
+                {/* 8. Marks / Score */}
+                <th className="py-3.5 px-4 border-r border-slate-700 text-center text-blue-300">
+                  Marks
+                </th>
+
+                {/* 9. Integrity & Risk */}
+                <th className="py-3.5 px-4 border-r border-slate-700 text-center text-purple-300">
+                  Integrity &amp; Risk
+                </th>
+
+                {/* 10. Status & Re-Access Action */}
                 <th className="py-3.5 px-4 text-center">
                   Status &amp; Actions
                 </th>
@@ -697,6 +718,42 @@ export default function CoordinatorStudentReportTab({ exam }: Props) {
                       >
                         {s.incompleteQuestions}
                       </span>
+                    </td>
+
+                    {/* 8. Marks / Score */}
+                    <td className="py-3 px-4 text-center border-r border-slate-200 font-bold text-slate-800 bg-slate-50/40 whitespace-nowrap">
+                      {s.score !== null && s.score !== undefined ? `${s.score} pts` : "—"}
+                    </td>
+
+                    {/* 9. Integrity & Risk */}
+                    <td className="py-3 px-4 text-center border-r border-slate-200 whitespace-nowrap">
+                      <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                        {s.riskScore !== null && s.riskScore !== undefined ? (
+                          <span
+                            className={`px-2 py-0.5 rounded-full font-bold text-[10px] border ${
+                              s.riskScore >= 75
+                                ? "bg-rose-100 text-rose-800 border-rose-200"
+                                : s.riskScore >= 40
+                                ? "bg-amber-100 text-amber-800 border-amber-200"
+                                : "bg-emerald-100 text-emerald-800 border-emerald-200"
+                            }`}
+                          >
+                            Risk: {s.riskScore.toFixed(1)}
+                          </span>
+                        ) : null}
+                        {s.flaggedForReview ? (
+                          <span className="bg-rose-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded uppercase">
+                            FLAGGED
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-emerald-700 font-medium">Clear</span>
+                        )}
+                        {(s.warningStrikes ?? 0) > 0 && (
+                          <span className="bg-amber-100 text-amber-800 text-[10px] font-bold px-1.5 py-0.2 rounded border border-amber-300">
+                            ⚠️ {s.warningStrikes}
+                          </span>
+                        )}
+                      </div>
                     </td>
 
                     {/* 8. Status & Re-Access */}

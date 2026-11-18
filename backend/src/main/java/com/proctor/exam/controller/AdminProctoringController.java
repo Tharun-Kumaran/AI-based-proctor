@@ -94,7 +94,8 @@ public class AdminProctoringController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant to,
             Authentication auth) {
         examAdminService.verifyExamAccess(examAdminService.getById(examId), auth != null ? auth.getName() : null);
-        return eventService.getAttemptsWithEventSummary(examId, studentEmail, severity, eventType, from, to);
+        List<Long> examIds = examAdminService.getRelatedExamIds(examId);
+        return eventService.getAttemptsWithEventSummary(examIds, studentEmail, severity, eventType, from, to);
     }
 
     /**

@@ -26,7 +26,11 @@ public interface ExamAttemptRepository extends JpaRepository<ExamAttempt, Long>,
 
     List<ExamAttempt> findByExamId(Long examId);
 
+    List<ExamAttempt> findByExamIdIn(java.util.Collection<Long> examIds);
+
     List<ExamAttempt> findByExamIdOrderByStartTimeDesc(Long examId);
+
+    List<ExamAttempt> findByExamIdInOrderByStartTimeDesc(java.util.Collection<Long> examIds);
 
     List<ExamAttempt> findByExamIdAndStatus(Long examId, String status);
 

@@ -365,6 +365,19 @@ public class ReportExportService {
         );
     }
 
+    private List<Long> getRelatedExamIds(Exam baseExam) {
+        List<Long> ids = new ArrayList<>();
+        ids.add(baseExam.getId());
+        List<Exam> otherClasses = examRepository.findAll().stream()
+                .filter(e -> !e.getId().equals(baseExam.getId()) && Boolean.TRUE.equals(e.getIsClass())
+                        && (e.getName().equals(baseExam.getName()) || e.getName().startsWith(baseExam.getName() + " - ")))
+                .toList();
+        for (Exam ec : otherClasses) {
+            ids.add(ec.getId());
+        }
+        return ids;
+    }
+
     /**
      * Generates a single consolidated cumulative PDF report for all students in an examination.
      */
@@ -372,7 +385,8 @@ public class ReportExportService {
     public byte[] exportCumulativeExamPdf(Long examId) {
         Exam exam = examRepository.findById(examId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Exam not found: " + examId));
-        List<ExamAttempt> attempts = attemptRepository.findByExamId(examId);
+        List<Long> relatedExamIds = getRelatedExamIds(exam);
+        List<ExamAttempt> attempts = attemptRepository.findByExamIdInOrderByStartTimeDesc(relatedExamIds);
 
         com.lowagie.text.Document doc = new com.lowagie.text.Document();
         ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -553,7 +567,8 @@ public class ReportExportService {
         Exam exam = examRepository.findById(examId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Exam not found: " + examId));
 
-        List<ExamAttempt> attempts = attemptRepository.findByExamIdOrderByStartTimeDesc(examId);
+        List<Long> relatedExamIds = getRelatedExamIds(exam);
+        List<ExamAttempt> attempts = attemptRepository.findByExamIdInOrderByStartTimeDesc(relatedExamIds);
 
         com.lowagie.text.Document doc = new com.lowagie.text.Document(com.lowagie.text.PageSize.A4, 28, 28, 28, 28);
         ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -655,7 +670,7 @@ public class ReportExportService {
                             && ans.getTestCasesPassed() != null && ans.getTestCasesPassed().equals(ans.getTotalTestCases()))
                 );
             } else {
-                isCompleted = ans != null && ans.getSelectedOption() != null && ans.getSelectedOption() > 0;
+                isCompleted = ans != null && ans.getSelectedOption() != null;
             }
             if (isCompleted) {
                 completedCount++;
@@ -743,9 +758,9 @@ public class ReportExportService {
                     responseSummary = lang + " (" + lines + " lines)";
                 }
             } else {
-                if (ans != null && ans.getSelectedOption() != null && ans.getSelectedOption() > 0) {
+                if (ans != null && ans.getSelectedOption() != null) {
                     isCompleted = true;
-                    char opt = (char) ('A' + (ans.getSelectedOption() - 1));
+                    char opt = (char) ('A' + ans.getSelectedOption());
                     responseSummary = "Selected Option " + opt;
                 }
             }
@@ -800,7 +815,8 @@ public class ReportExportService {
         Exam exam = examRepository.findById(examId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Exam not found: " + examId));
 
-        List<ExamAttempt> attempts = attemptRepository.findByExamIdOrderByStartTimeDesc(examId);
+        List<Long> relatedExamIds = getRelatedExamIds(exam);
+        List<ExamAttempt> attempts = attemptRepository.findByExamIdInOrderByStartTimeDesc(relatedExamIds);
 
         com.lowagie.text.Document doc = new com.lowagie.text.Document(com.lowagie.text.PageSize.A4, 28, 28, 28, 28);
         ByteArrayOutputStream out = new ByteArrayOutputStream();

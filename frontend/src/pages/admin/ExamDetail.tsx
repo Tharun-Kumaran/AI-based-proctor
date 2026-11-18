@@ -5137,7 +5137,9 @@ function ResultsTab({ examId, exam }: { examId: number; exam?: Exam }) {
                 <th className="px-4 py-3 whitespace-nowrap font-semibold">Started</th>
                 <th className="px-4 py-3 whitespace-nowrap font-semibold">Status</th>
                 <th className="px-4 py-3 whitespace-nowrap font-semibold">Score</th>
+                <th className="px-4 py-3 whitespace-nowrap font-semibold text-center">Questions</th>
                 <th className="px-4 py-3 whitespace-nowrap font-semibold">Risk Score</th>
+                <th className="px-4 py-3 whitespace-nowrap font-semibold">Strikes</th>
                 <th className="px-4 py-3 whitespace-nowrap font-semibold">Review</th>
                 <th className="px-4 py-3 whitespace-nowrap font-semibold">Live Media</th>
                 <th className="px-4 py-3 whitespace-nowrap font-semibold">Events</th>
@@ -5193,12 +5195,30 @@ function ResultsTab({ examId, exam }: { examId: number; exam?: Exam }) {
                       </span>
                     </td>
                     <td className="px-4 py-3 font-semibold text-slate-800 whitespace-nowrap">
-                      {a.score !== null ? a.score : "—"}
+                      {a.score !== null ? `${a.score} pts` : "—"}
+                    </td>
+                    <td className="px-4 py-3 text-center whitespace-nowrap">
+                      {a.completedQuestions !== undefined && a.totalQuestions !== undefined ? (
+                        <span className="inline-block px-2.5 py-0.5 rounded-full font-mono font-bold text-xs bg-slate-100 text-slate-800 border border-slate-200">
+                          {a.completedQuestions} / {a.totalQuestions}
+                        </span>
+                      ) : (
+                        <span className="text-slate-400 text-xs">—</span>
+                      )}
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap">
                       <span className={`text-xs font-bold px-2.5 py-0.5 rounded-full border ${riskBadgeClass}`}>
                         {scoreVal.toFixed(1)}
                       </span>
+                    </td>
+                    <td className="px-4 py-3 whitespace-nowrap">
+                      {(a.warningStrikes ?? 0) > 0 ? (
+                        <span className="bg-amber-100 text-amber-800 text-xs font-bold px-2 py-0.5 rounded border border-amber-300">
+                          ⚠️ {a.warningStrikes} / {maxStrikes}
+                        </span>
+                      ) : (
+                        <span className="text-slate-400 text-xs">0 / {maxStrikes}</span>
+                      )}
                     </td>
                     <td className="px-4 py-3 whitespace-nowrap">
                       {a.flaggedForReview ? (

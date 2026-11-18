@@ -10,6 +10,14 @@ export interface ProfessorStudentReportItem {
   totalQuestions: number;
   completedQuestions: number;
   incompleteQuestions: number;
+  studentEmail?: string;
+  attemptId?: number;
+  attemptStatus?: string;
+  score?: number | null;
+  warningStrikes?: number;
+  isTerminated?: boolean;
+  riskScore?: number | null;
+  flaggedForReview?: boolean;
 }
 
 export interface ProfessorStudentReportResponse {
@@ -112,6 +120,10 @@ export default function ProfessorStudentReportTab({ exam }: Props) {
       "Total Questions": s.totalQuestions,
       Completed: s.completedQuestions,
       Incomplete: s.incompleteQuestions,
+      "Marks Awarded": s.score !== null && s.score !== undefined ? s.score : "—",
+      "Risk Score": s.riskScore !== null && s.riskScore !== undefined ? s.riskScore.toFixed(1) : "—",
+      "Warning Strikes": s.warningStrikes ?? 0,
+      "Integrity Status": s.flaggedForReview ? "FLAGGED" : "Clear",
     }));
     const ws = XLSX.utils.json_to_sheet(rows);
     source.forEach((s, i) => {
@@ -513,7 +525,7 @@ export default function ProfessorStudentReportTab({ exam }: Props) {
                 {/* 5. In complete */}
                 <th
                   onClick={() => toggleSort("incompleteQuestions")}
-                  className="py-3.5 px-4 text-center cursor-pointer hover:bg-slate-800 transition text-amber-300"
+                  className="py-3.5 px-4 border-r border-slate-700 text-center cursor-pointer hover:bg-slate-800 transition text-amber-300"
                   title="Click to sort by Incomplete questions (Asc / Desc)"
                 >
                   <div className="flex items-center justify-center gap-1">
@@ -522,6 +534,21 @@ export default function ProfessorStudentReportTab({ exam }: Props) {
                       <span>{sortDirection === "asc" ? "▲" : "▼"}</span>
                     )}
                   </div>
+                </th>
+
+                {/* 6. Marks / Score */}
+                <th className="py-3.5 px-4 border-r border-slate-700 text-center text-blue-300">
+                  Marks
+                </th>
+
+                {/* 7. Integrity & Risk */}
+                <th className="py-3.5 px-4 border-r border-slate-700 text-center text-purple-300">
+                  Integrity &amp; Risk
+                </th>
+
+                {/* 8. Status */}
+                <th className="py-3.5 px-4 text-center">
+                  Status
                 </th>
               </tr>
             </thead>
@@ -555,7 +582,7 @@ export default function ProfessorStudentReportTab({ exam }: Props) {
                     </td>
 
                     {/* 5. In complete */}
-                    <td className="py-3 px-4 text-center bg-amber-50/30">
+                    <td className="py-3 px-4 text-center border-r border-slate-200 bg-amber-50/30">
                       <span
                         className={`inline-block px-2.5 py-1 rounded-full font-mono font-black text-xs ${
                           s.incompleteQuestions === 0
@@ -566,11 +593,66 @@ export default function ProfessorStudentReportTab({ exam }: Props) {
                         {s.incompleteQuestions}
                       </span>
                     </td>
+
+                    {/* 6. Marks / Score */}
+                    <td className="py-3 px-4 text-center border-r border-slate-200 font-bold text-slate-800 bg-slate-50/40 whitespace-nowrap">
+                      {s.score !== null && s.score !== undefined ? `${s.score} pts` : "—"}
+                    </td>
+
+                    {/* 7. Integrity & Risk */}
+                    <td className="py-3 px-4 text-center border-r border-slate-200 whitespace-nowrap">
+                      <div className="flex items-center justify-center gap-1.5 flex-wrap">
+                        {s.riskScore !== null && s.riskScore !== undefined ? (
+                          <span
+                            className={`px-2 py-0.5 rounded-full font-bold text-[10px] border ${
+                              s.riskScore >= 75
+                                ? "bg-rose-100 text-rose-800 border-rose-200"
+                                : s.riskScore >= 40
+                                ? "bg-amber-100 text-amber-800 border-amber-200"
+                                : "bg-emerald-100 text-emerald-800 border-emerald-200"
+                            }`}
+                          >
+                            Risk: {s.riskScore.toFixed(1)}
+                          </span>
+                        ) : null}
+                        {s.flaggedForReview ? (
+                          <span className="bg-rose-600 text-white text-[9px] font-bold px-1.5 py-0.5 rounded uppercase">
+                            FLAGGED
+                          </span>
+                        ) : (
+                          <span className="text-[10px] text-emerald-700 font-medium">Clear</span>
+                        )}
+                        {(s.warningStrikes ?? 0) > 0 && (
+                          <span className="bg-amber-100 text-amber-800 text-[10px] font-bold px-1.5 py-0.2 rounded border border-amber-300">
+                            ⚠️ {s.warningStrikes}
+                          </span>
+                        )}
+                      </div>
+                    </td>
+
+                    {/* 8. Status */}
+                    <td className="py-3 px-4 text-center whitespace-nowrap">
+                      {s.isTerminated || (s.warningStrikes ?? 0) >= (exam.isClass ? 10 : 3) || s.attemptStatus === "TERMINATED" ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-bold text-[11px] bg-rose-100 text-rose-800 border border-rose-300 shadow-2xs">
+                          <span>⛔</span> Terminated
+                        </span>
+                      ) : s.attemptStatus === "SUBMITTED" ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-bold text-[11px] bg-emerald-100 text-emerald-800 border border-emerald-300">
+                          <span>✅</span> Submitted
+                        </span>
+                      ) : s.attemptStatus === "IN_PROGRESS" ? (
+                        <span className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full font-bold text-[11px] bg-blue-100 text-blue-800 border border-blue-300">
+                          <span>🟢</span> In Progress
+                        </span>
+                      ) : (
+                        <span className="text-slate-400 text-xs">—</span>
+                      )}
+                    </td>
                   </tr>
                 ))
               ) : (
                 <tr>
-                  <td colSpan={5} className="py-12 text-center text-slate-400">
+                  <td colSpan={8} className="py-12 text-center text-slate-400">
                     <div className="text-3xl mb-2">📋</div>
                     <p className="font-semibold text-slate-600">No student records found</p>
                     <p className="text-xs text-slate-400 mt-0.5">

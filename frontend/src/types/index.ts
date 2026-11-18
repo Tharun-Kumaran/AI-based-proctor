@@ -196,6 +196,9 @@ export interface AdminAttemptSummary {
   currentRiskScore?: number;
   flaggedForReview?: boolean;
   proctoringSession: ProctoringSession | null;
+  totalQuestions?: number;
+  completedQuestions?: number;
+  warningStrikes?: number;
 }
 
 export interface WarningResponse {

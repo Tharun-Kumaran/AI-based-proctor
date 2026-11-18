@@ -34,6 +34,7 @@ public class ExamAdminService {
     private final ExamAnswerRepository answerRepository;
     private final ProctoringEventRepository proctoringEventRepository;
     private final ProctoringSessionRepository proctoringSessionRepository;
+    private final RiskEngine riskEngine;
 
     public ExamAdminService(ExamRepository examRepository,
                             ExamQuestionRepository questionRepository,
@@ -48,7 +49,8 @@ public class ExamAdminService {
                             StudentRepository studentRepository,
                             ExamAnswerRepository answerRepository,
                             ProctoringEventRepository proctoringEventRepository,
-                            ProctoringSessionRepository proctoringSessionRepository) {
+                            ProctoringSessionRepository proctoringSessionRepository,
+                            RiskEngine riskEngine) {
         this.examRepository = examRepository;
         this.questionRepository = questionRepository;
         this.assignmentRepository = assignmentRepository;
@@ -63,6 +65,7 @@ public class ExamAdminService {
         this.answerRepository = answerRepository;
         this.proctoringEventRepository = proctoringEventRepository;
         this.proctoringSessionRepository = proctoringSessionRepository;
+        this.riskEngine = riskEngine;
     }
 
     @Transactional
@@ -1577,6 +1580,20 @@ public class ExamAdminService {
         return exam;
     }
 
+    public List<Long> getRelatedExamIds(Long examId) {
+        Exam baseExam = getById(examId);
+        List<Long> ids = new ArrayList<>();
+        ids.add(examId);
+        List<Exam> otherClasses = examRepository.findAll().stream()
+                .filter(e -> !e.getId().equals(baseExam.getId()) && Boolean.TRUE.equals(e.getIsClass())
+                        && (e.getName().equals(baseExam.getName()) || e.getName().startsWith(baseExam.getName() + " - ")))
+                .toList();
+        for (Exam ec : otherClasses) {
+            ids.add(ec.getId());
+        }
+        return ids;
+    }
+
     public CoordinatorStudentReportResponse getCoordinatorStudentReport(Long examId, String staffEmail) {
         Exam baseExam = getById(examId);
         verifyExamAccess(baseExam, staffEmail);
@@ -1746,13 +1763,23 @@ public class ExamAdminService {
                 String attemptStatus = null;
                 int warningStrikes = 0;
                 boolean isTerminated = false;
+                BigDecimal score = null;
+                BigDecimal riskScore = null;
+                Boolean flaggedForReview = false;
+
                 if (!studentAttempts.isEmpty()) {
                     ExamAttempt bestAttempt = studentAttempts.get(0);
                     attemptId = bestAttempt.getId();
                     attemptStatus = bestAttempt.getStatus();
+                    score = bestAttempt.getScore();
+                    flaggedForReview = Boolean.TRUE.equals(bestAttempt.getFlaggedForReview());
                     warningStrikes = (int) proctoringEventRepository.countByAttemptIdAndEventType(bestAttempt.getId(), "WARNING_STRIKE");
                     int maxAllowed = Boolean.TRUE.equals(ex.getIsClass()) ? 10 : 3;
                     isTerminated = "TERMINATED".equalsIgnoreCase(attemptStatus) || warningStrikes >= maxAllowed;
+
+                    List<ProctoringEvent> evs = proctoringEventRepository.findByAttemptIdOrderByOccurredAtAsc(bestAttempt.getId());
+                    Map<String, Integer> weights = riskEngine.resolveWeights(ex);
+                    riskScore = riskEngine.computeDecayedRiskScore(evs, weights, Instant.now());
 
                     List<ExamAnswer> answers = answerRepository.findByAttemptId(bestAttempt.getId());
                     for (ExamAnswer ans : answers) {
@@ -1790,7 +1817,10 @@ public class ExamAdminService {
                         attemptId,
                         attemptStatus,
                         warningStrikes,
-                        isTerminated
+                        isTerminated,
+                        score,
+                        riskScore,
+                        flaggedForReview
                 );
 
                 if (reportMap.containsKey(email)) {
@@ -1871,8 +1901,28 @@ public class ExamAdminService {
                     .findByExamIdAndStudentEmailIgnoreCaseOrderByAttemptNumberDesc(examId, email);
 
             int completed = 0;
+            Long attemptId = null;
+            String attemptStatus = null;
+            int warningStrikes = 0;
+            boolean isTerminated = false;
+            BigDecimal score = null;
+            BigDecimal riskScore = null;
+            Boolean flaggedForReview = false;
+
             if (!studentAttempts.isEmpty()) {
                 ExamAttempt bestAttempt = studentAttempts.get(0);
+                attemptId = bestAttempt.getId();
+                attemptStatus = bestAttempt.getStatus();
+                score = bestAttempt.getScore();
+                flaggedForReview = Boolean.TRUE.equals(bestAttempt.getFlaggedForReview());
+                warningStrikes = (int) proctoringEventRepository.countByAttemptIdAndEventType(bestAttempt.getId(), "WARNING_STRIKE");
+                int maxAllowed = Boolean.TRUE.equals(exam.getIsClass()) ? 10 : 3;
+                isTerminated = "TERMINATED".equalsIgnoreCase(attemptStatus) || warningStrikes >= maxAllowed;
+
+                List<ProctoringEvent> evs = proctoringEventRepository.findByAttemptIdOrderByOccurredAtAsc(bestAttempt.getId());
+                Map<String, Integer> weights = riskEngine.resolveWeights(exam);
+                riskScore = riskEngine.computeDecayedRiskScore(evs, weights, Instant.now());
+
                 List<ExamAnswer> answers = answerRepository.findByAttemptId(bestAttempt.getId());
                 for (ExamAnswer ans : answers) {
                     if (ans.getQuestion() != null && allQuestionIds.contains(ans.getQuestion().getId())) {
@@ -1902,7 +1952,15 @@ public class ExamAdminService {
                     sName,
                     totalQuestions,
                     completed,
-                    incomplete
+                    incomplete,
+                    email,
+                    attemptId,
+                    attemptStatus,
+                    score,
+                    warningStrikes,
+                    isTerminated,
+                    riskScore,
+                    flaggedForReview
             ));
         }
 

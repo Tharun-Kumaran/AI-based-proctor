@@ -20,11 +20,26 @@ public class ExamAttemptSpecification {
             Instant from,
             Instant to
     ) {
+        return filter(examId != null ? List.of(examId) : null, studentEmail, severity, eventType, from, to);
+    }
+
+    public static Specification<ExamAttempt> filter(
+            List<Long> examIds,
+            String studentEmail,
+            String severity,
+            String eventType,
+            Instant from,
+            Instant to
+    ) {
         return (root, query, cb) -> {
             List<Predicate> predicates = new ArrayList<>();
 
-            if (examId != null) {
-                predicates.add(cb.equal(root.get("exam").get("id"), examId));
+            if (examIds != null && !examIds.isEmpty()) {
+                if (examIds.size() == 1) {
+                    predicates.add(cb.equal(root.get("exam").get("id"), examIds.get(0)));
+                } else {
+                    predicates.add(root.get("exam").get("id").in(examIds));
+                }
             }
 
             if (studentEmail != null && !studentEmail.isBlank()) {
