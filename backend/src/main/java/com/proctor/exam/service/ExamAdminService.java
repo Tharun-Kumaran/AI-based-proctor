@@ -376,13 +376,59 @@ public class ExamAdminService {
         }
     }
 
-    public boolean isProfessorUser(String staffEmail) {
-        if (staffEmail == null || staffEmail.isBlank()) return false;
-        String email = staffEmail.trim().toLowerCase();
-        Admin admin = adminRepository.findByEmail(email).orElse(null);
-        Professor prof = professorRepository.findByEmailIgnoreCase(email).orElse(null);
-        return (admin != null && ("EXAMINER".equalsIgnoreCase(admin.getRole()) || "FACULTY".equalsIgnoreCase(admin.getRole()) || "PROFESSOR".equalsIgnoreCase(admin.getRole())))
-                || (prof != null);
+    public Set<String> getAllowedStudentEmailsForProfessor(Long examId, String staffEmail) {
+        if (staffEmail == null || staffEmail.isBlank() || examId == null) return null;
+        if (!isProfessorUser(staffEmail)) {
+            // Coordinator and Super Admin have unrestricted view
+            return null;
+        }
+
+        Exam exam = getById(examId);
+        String caller = staffEmail.trim().toLowerCase();
+        Professor prof = professorRepository.findByEmailIgnoreCase(caller).orElse(null);
+        Admin admin = adminRepository.findByEmail(caller).orElse(null);
+        Long profId = prof != null ? prof.getId() : null;
+        Long adminId = admin != null ? admin.getId() : null;
+
+        // If the professor is the exclusive creator or explicitly designated exclusive professor on this exam, they own all students assigned
+        boolean isExclusiveOwner = (adminId != null && exam.getCreatedBy() != null && exam.getCreatedBy().equals(adminId))
+                || (exam.getAssignedProfessorEmail() != null && exam.getAssignedProfessorEmail().equalsIgnoreCase(caller))
+                || (exam.getAssignedProfessorId() != null && ((adminId != null && exam.getAssignedProfessorId().equals(adminId)) || (profId != null && exam.getAssignedProfessorId().equals(profId))));
+
+        boolean isSharedClass = Boolean.TRUE.equals(exam.getAssignedToAllProfessors()) || "ALL_PROFESSORS".equalsIgnoreCase(exam.getAssignedProfessorEmail());
+
+        if (isExclusiveOwner && !isSharedClass) {
+            return null; // All students in this exam belong to this professor
+        }
+
+        // On shared exams, strictly isolate: Professor A only sees students whose ExamAssignment was created by Professor A
+        List<ExamAssignment> assignments = assignmentRepository.findByExamIdOrderByCreatedAtDesc(examId);
+        Set<String> allowedEmails = new HashSet<>();
+        for (ExamAssignment a : assignments) {
+            if (a.getStudentEmail() == null || a.getStudentEmail().isBlank()) continue;
+            boolean matchesCaller = (a.getAssignedByProfessorEmail() != null && a.getAssignedByProfessorEmail().equalsIgnoreCase(caller))
+                    || (profId != null && a.getAssignedByProfessorId() != null && a.getAssignedByProfessorId().equals(profId))
+                    || (adminId != null && a.getAssignedByProfessorId() != null && a.getAssignedByProfessorId().equals(adminId));
+            if (matchesCaller) {
+                allowedEmails.add(a.getStudentEmail().trim().toLowerCase());
+            }
+        }
+        return allowedEmails;
+    }
+
+    public void verifyStudentAccessForExam(Exam exam, String studentEmail, String staffEmail) {
+        if (exam == null || studentEmail == null || staffEmail == null) return;
+        verifyExamAccess(exam, staffEmail);
+        Set<String> allowed = getAllowedStudentEmailsForProfessor(exam.getId(), staffEmail);
+        if (allowed != null && !allowed.contains(studentEmail.trim().toLowerCase())) {
+            throw new ApiException(HttpStatus.FORBIDDEN,
+                    "Access denied: As a Professor, you can only view, evaluate, and manage students assigned by you.");
+        }
+    }
+
+    public void verifyAttemptAccessForStaff(ExamAttempt attempt, String staffEmail) {
+        if (attempt == null || staffEmail == null) return;
+        verifyStudentAccessForExam(attempt.getExam(), attempt.getStudentEmail(), staffEmail);
     }
 
     public record ProfessorSummary(Long id, String email, String fullName, String department) {}
@@ -1057,6 +1103,10 @@ public class ExamAdminService {
     public Set<String> getAssignedEmails(Long examId, String staffEmail) {
         Exam exam = getById(examId);
         verifyExamAccess(exam, staffEmail);
+        Set<String> allowed = getAllowedStudentEmailsForProfessor(examId, staffEmail);
+        if (allowed != null) {
+            return allowed;
+        }
         return assignmentRepository.findAssignedStudentEmailsByExamId(examId);
     }
 
@@ -1479,8 +1529,14 @@ public class ExamAdminService {
                 ? (exam.getNumQuestions() != null ? exam.getNumQuestions() : 0)
                 : sqas.get(0).getQuestionsPerStudent();
 
+        Set<String> allowedEmails = getAllowedStudentEmailsForProfessor(examId, adminEmail);
+
         List<StudentQuestionAssignmentEntry> entries = new ArrayList<>();
         for (StudentQuestionAssignment sqa : sqas) {
+            String sEmailClean = sqa.getStudentEmail() != null ? sqa.getStudentEmail().trim().toLowerCase() : "";
+            if (allowedEmails != null && !allowedEmails.contains(sEmailClean)) {
+                continue;
+            }
             List<Long> ids;
             try {
                 ids = MAPPER.readValue(sqa.getQuestionIds(),
@@ -1597,6 +1653,10 @@ public class ExamAdminService {
     public CoordinatorStudentReportResponse getCoordinatorStudentReport(Long examId, String staffEmail) {
         Exam baseExam = getById(examId);
         verifyExamAccess(baseExam, staffEmail);
+        if (isProfessorUser(staffEmail)) {
+            throw new ApiException(HttpStatus.FORBIDDEN,
+                    "Access denied: The Coordinator Student Report is exclusively available to Course Coordinators and Administrators.");
+        }
 
         // 1. Identify all coordinator-assigned questions in baseExam
         // Coordinator questions have createdByCoordinator == true or createdByRole == "COURSE_COORDINATOR"
@@ -1842,8 +1902,8 @@ public class ExamAdminService {
         Exam exam = getById(examId);
         verifyExamAccess(exam, staffEmail);
 
-        // All questions in this exam: coordinator-assigned questions + questions given by the prof himself
-        List<ExamQuestion> examQuestions = questionRepository.findByExamIdOrderByDisplayOrderAsc(examId);
+        // Filter questions: Coordinator questions + questions added by this specific professor
+        List<ExamQuestion> examQuestions = listQuestions(examId, staffEmail);
         int totalQuestions = examQuestions.size();
 
         int coordCount = (int) examQuestions.stream()
@@ -1855,7 +1915,9 @@ public class ExamAdminService {
                 .map(ExamQuestion::getId)
                 .collect(Collectors.toSet());
 
-        // Students assigned to this professor's exam/section
+        // Students assigned strictly to this professor's section
+        Set<String> allowedStudentEmails = getAllowedStudentEmailsForProfessor(examId, staffEmail);
+
         Map<String, ProfessorStudentReportItem> reportMap = new LinkedHashMap<>();
 
         Map<String, Student> studentCache = new HashMap<>();
@@ -1865,12 +1927,15 @@ public class ExamAdminService {
             }
         }
 
-        // 1. From ExamAssignment on this exam
-        List<ExamAssignment> assignments = assignmentRepository.findByExamIdOrderByCreatedAtDesc(examId);
+        // 1. From ExamAssignment on this exam (filtered to professor's students)
+        List<ExamAssignment> assignments = listAssignments(examId, staffEmail);
         Set<String> assignedEmails = new LinkedHashSet<>();
         for (ExamAssignment a : assignments) {
             if (a.getStudentEmail() != null && !a.getStudentEmail().isBlank()) {
-                assignedEmails.add(a.getStudentEmail().trim().toLowerCase());
+                String clean = a.getStudentEmail().trim().toLowerCase();
+                if (allowedStudentEmails == null || allowedStudentEmails.contains(clean)) {
+                    assignedEmails.add(clean);
+                }
             }
         }
 
@@ -1878,7 +1943,10 @@ public class ExamAdminService {
         List<ExamAttempt> attempts = examAttemptRepository.findByExamId(examId);
         for (ExamAttempt at : attempts) {
             if (at.getStudentEmail() != null && !at.getStudentEmail().isBlank()) {
-                assignedEmails.add(at.getStudentEmail().trim().toLowerCase());
+                String clean = at.getStudentEmail().trim().toLowerCase();
+                if (allowedStudentEmails == null || allowedStudentEmails.contains(clean)) {
+                    assignedEmails.add(clean);
+                }
             }
         }
 
@@ -1998,6 +2066,9 @@ public class ExamAdminService {
             throw new ApiException(HttpStatus.NOT_FOUND, "No exam attempts found for student: " + studentEmail);
         }
 
+        // Verify caller has ownership of this student on shared exams
+        verifyStudentAccessForExam(exam, targetEmail, staffEmail);
+
         ExamAttempt latestAttempt = attempts.get(0);
 
         // Reinstate attempt: status to INCOMPLETE allows seamless resumption
@@ -2005,7 +2076,28 @@ public class ExamAdminService {
         latestAttempt.setEndTime(null);
         latestAttempt.setFlaggedForReview(false);
         latestAttempt.setStartTime(Instant.now());
+        latestAttempt.setScore(null);
         examAttemptRepository.save(latestAttempt);
+
+        // Reset any premature/auto-submitted finalization on coding questions where all test cases were NOT passed
+        List<ExamAnswer> existingAnswers = answerRepository.findByAttemptId(latestAttempt.getId());
+        if (existingAnswers != null) {
+            for (ExamAnswer ea : existingAnswers) {
+                if (ea.getQuestion() != null && "CODING".equalsIgnoreCase(ea.getQuestion().getQuestionType())) {
+                    boolean trulyPassed = ea.getTotalTestCases() != null && ea.getTotalTestCases() > 0
+                            && ea.getTestCasesPassed() != null && ea.getTestCasesPassed().equals(ea.getTotalTestCases());
+                    if (!trulyPassed) {
+                        ea.setIsFinalized(false);
+                        ea.setIsCorrect(null);
+                        ea.setMarksAwarded(null);
+                        ea.setTestCasesPassed(null);
+                        ea.setTotalTestCases(null);
+                        ea.setExecutionOutput(null);
+                        answerRepository.save(ea);
+                    }
+                }
+            }
+        }
 
         // Pardon past warning strikes so student starts with a clean slate
         List<ProctoringEvent> strikes = proctoringEventRepository.findByAttemptIdAndEventType(latestAttempt.getId(), "WARNING_STRIKE");

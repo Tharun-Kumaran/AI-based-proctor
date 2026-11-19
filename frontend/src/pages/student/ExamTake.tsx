@@ -195,50 +195,41 @@ export default function ExamTake() {
           if (res.savedCodingAnswers) {
             setCodingAnswers(res.savedCodingAnswers);
           }
-          // Restore completed and locked questions from persistent backend database response
-          if (res.completedQuestionIds && Array.isArray(res.completedQuestionIds)) {
-            setLockedCodingQuestions((prev) => {
-              const next = new Set(prev);
-              res.completedQuestionIds?.forEach((id) => next.add(id));
-              return next;
-            });
-            setQuestionTestCasesPassed((prev) => {
-              const next = { ...prev };
-              res.completedQuestionIds?.forEach((id) => {
-                next[id] = true;
-              });
-              return next;
-            });
-          }
+          // Restore completed and locked questions from authoritative backend database response
+          const completedIds = Array.isArray(res.completedQuestionIds) ? res.completedQuestionIds : [];
+          setLockedCodingQuestions(new Set(completedIds));
+          const initialPassed: Record<number, boolean> = {};
+          completedIds.forEach((id) => {
+            initialPassed[id] = true;
+          });
+          setQuestionTestCasesPassed(initialPassed);
+
           try {
-            const stored = sessionStorage.getItem(`locked_coding_${res.attemptId}`);
-            if (stored) {
-              const parsed = JSON.parse(stored);
-              if (Array.isArray(parsed)) {
-                setLockedCodingQuestions((prev) => new Set([...prev, ...parsed]));
-              }
-            }
-            const storedPassed = sessionStorage.getItem(`passed_coding_${res.attemptId}`);
-            if (storedPassed) {
-              const parsedPassed = JSON.parse(storedPassed);
-              if (parsedPassed && typeof parsedPassed === "object") {
-                setQuestionTestCasesPassed((prev) => ({ ...prev, ...parsedPassed }));
-              }
-            }
+            sessionStorage.setItem(`locked_coding_${res.attemptId}`, JSON.stringify(completedIds));
+            sessionStorage.setItem(`passed_coding_${res.attemptId}`, JSON.stringify(initialPassed));
           } catch {}
 
-          // Advance to the first unanswered question if prior questions have already been completed
-          if (res.completedQuestionIds && res.completedQuestionIds.length > 0 && res.questions) {
-            const firstUnansweredIndex = res.questions.findIndex((qq) => {
-              const isCoding = String(qq.questionType || "").trim().toUpperCase() === "CODING";
-              if (isCoding) {
-                return !res.completedQuestionIds?.includes(qq.questionId);
+          // Advance to the first unanswered/incomplete question so student never has to start from Question 1 if already completed
+          if (res.questions && res.questions.length > 0) {
+            let targetIndex = 0;
+            if (typeof res.firstIncompleteQuestionIndex === "number" && res.firstIncompleteQuestionIndex >= 0) {
+              targetIndex = res.firstIncompleteQuestionIndex;
+            } else {
+              const compSet = new Set(completedIds.map(Number));
+              const answeredMcqSet = new Set(Object.keys(res.savedAnswers || {}).map(Number));
+              const firstUnansweredIndex = res.questions.findIndex((qq) => {
+                const qid = Number(qq.questionId);
+                const isCoding = String(qq.questionType || "").trim().toUpperCase() === "CODING";
+                if (isCoding) {
+                  return !compSet.has(qid);
+                }
+                return !answeredMcqSet.has(qid) || res.savedAnswers?.[qid] === undefined;
+              });
+              if (firstUnansweredIndex >= 0) {
+                targetIndex = firstUnansweredIndex;
               }
-              return res.savedAnswers ? res.savedAnswers[qq.questionId] === undefined : true;
-            });
-            if (firstUnansweredIndex > 0) {
-              setCurrent(firstUnansweredIndex);
             }
+            setCurrent(targetIndex);
           }
           // Class exams are untimed (no countdown timer running)
           if (!res.isClass && res.durationMinutes != null && res.durationMinutes > 0) {
@@ -3050,29 +3041,42 @@ export default function ExamTake() {
         </div>
       )}
 
-      {/* Terminate Session Confirmation Modal */}
+      {/* Voluntary Exit Modal (Save & Exit for Class / Terminate for Exam) */}
       {showTerminateConfirm && (
         <div className="fixed inset-0 z-[1000] flex items-center justify-center p-4 bg-black/80 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl text-slate-900 space-y-4 border border-slate-200">
-            <div className="w-14 h-14 rounded-full bg-rose-100 text-rose-600 flex items-center justify-center mx-auto text-2xl font-bold shadow-inner">
-              🚪
+            <div className={`w-14 h-14 rounded-full flex items-center justify-center mx-auto text-2xl font-bold shadow-inner ${
+              session?.isClass ? "bg-sky-100 text-sky-600" : "bg-rose-100 text-rose-600"
+            }`}>
+              {session?.isClass ? "💾" : "🚪"}
             </div>
             <h3 className="text-xl font-bold text-center text-slate-900">
-              Terminate {session?.isClass ? "Class" : "Examination"}?
+              {session?.isClass ? "Save & Exit Class Session?" : "Terminate Examination?"}
             </h3>
             <p className="text-sm text-slate-600 text-center leading-relaxed">
-              Are you sure you want to terminate without submitting? Your session will be recorded as <strong className="text-amber-600">INCOMPLETE</strong>. You will be able to re-enter and take it later.
+              {session?.isClass ? (
+                <>Your answers and coding progress will be <strong className="text-sky-700">safely saved</strong>. You can re-enter this class anytime to resume right where you left off.</>
+              ) : (
+                <>Are you sure you want to terminate without submitting? Your session will be recorded as <strong className="text-amber-600">INCOMPLETE</strong>. You will be able to re-enter and take it later.</>
+              )}
             </p>
-            <div className="bg-amber-50 border border-amber-200 rounded-xl p-3 text-xs text-amber-900 space-y-1">
-              <p className="font-bold flex items-center gap-1 text-amber-800">
-                <span>💡</span> Examination Rule Notice:
+            <div className={`rounded-xl p-3 text-xs space-y-1 border ${
+              session?.isClass ? "bg-sky-50/80 border-sky-200 text-sky-950" : "bg-amber-50 border-amber-200 text-amber-900"
+            }`}>
+              <p className={`font-bold flex items-center gap-1 ${session?.isClass ? "text-sky-800" : "text-amber-800"}`}>
+                <span>{session?.isClass ? "ℹ️" : "💡"}</span> {session?.isClass ? "Class Progress Notice:" : "Examination Rule Notice:"}
               </p>
-              <p>
-                • Terminating now marks your attempt as <strong>Incomplete</strong>.
-              </p>
-              <p>
-                • If you pass the test cases and submit, it will be marked as <strong>Completed</strong> and cannot be attempted again.
-              </p>
+              {session?.isClass ? (
+                <>
+                  <p>• Your submitted &amp; passed questions remain permanently completed.</p>
+                  <p>• Incomplete and draft questions can be resumed when you return.</p>
+                </>
+              ) : (
+                <>
+                  <p>• Terminating now marks your attempt as <strong>Incomplete</strong>.</p>
+                  <p>• If you pass the test cases and submit, it will be marked as <strong>Completed</strong> and cannot be attempted again.</p>
+                </>
+              )}
             </div>
             <div className="flex items-center justify-end gap-3 pt-2">
               <button
@@ -3081,16 +3085,24 @@ export default function ExamTake() {
                 disabled={terminating}
                 className="px-4 py-2.5 text-xs font-semibold text-slate-700 bg-slate-100 hover:bg-slate-200 rounded-lg transition cursor-pointer"
               >
-                Continue Working
+                Continue {session?.isClass ? "Class" : "Working"}
               </button>
               <button
                 type="button"
                 onClick={handleTerminate}
                 disabled={terminating}
-                className="px-4 py-2.5 text-xs font-bold text-white bg-rose-600 hover:bg-rose-700 active:bg-rose-800 rounded-lg transition shadow-sm cursor-pointer flex items-center gap-1.5"
+                className={`px-4 py-2.5 text-xs font-bold text-white rounded-lg transition shadow-sm cursor-pointer flex items-center gap-1.5 ${
+                  session?.isClass
+                    ? "bg-sky-600 hover:bg-sky-500 active:bg-sky-700"
+                    : "bg-rose-600 hover:bg-rose-700 active:bg-rose-800"
+                }`}
               >
-                <span>🚪</span>
-                <span>{terminating ? "Terminating…" : "Yes, Terminate Session"}</span>
+                <span>{session?.isClass ? "💾" : "🚪"}</span>
+                <span>
+                  {terminating
+                    ? (session?.isClass ? "Saving Progress…" : "Terminating…")
+                    : (session?.isClass ? "Save & Exit Class" : "Yes, Terminate Session")}
+                </span>
               </button>
             </div>
           </div>
@@ -3240,16 +3252,28 @@ export default function ExamTake() {
           )}
           <span className="text-sm text-slate-300 hidden sm:inline">{answeredCount} answered</span>
 
-          {/* Student voluntary terminate button */}
-          <button
-            type="button"
-            onClick={() => setShowTerminateConfirm(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-rose-950/80 hover:bg-rose-900 border border-rose-500/60 text-rose-200 transition shadow-xs cursor-pointer active:scale-98"
-            title="Terminate without submitting. Attempt will be marked as Incomplete, allowing you to re-take or resume later."
-          >
-            <span>🚪</span>
-            <span>Terminate {session?.isClass ? "Class" : "Exam"}</span>
-          </button>
+          {/* Student voluntary exit button: Save & Exit for class, Terminate for formal exams */}
+          {session?.isClass ? (
+            <button
+              type="button"
+              onClick={() => setShowTerminateConfirm(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-sky-950/70 hover:bg-sky-900 border border-sky-400/50 text-sky-200 transition-colors shadow-xs cursor-pointer active:scale-98"
+              title="Save your current answers and exit. You can resume this class session later."
+            >
+              <span>💾</span>
+              <span>Save and Exit</span>
+            </button>
+          ) : (
+            <button
+              type="button"
+              onClick={() => setShowTerminateConfirm(true)}
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-bold bg-rose-950/80 hover:bg-rose-900 border border-rose-500/60 text-rose-200 transition shadow-xs cursor-pointer active:scale-98"
+              title="Terminate without submitting. Attempt will be marked as Incomplete, allowing you to re-take or resume later."
+            >
+              <span>🚪</span>
+              <span>Terminate Exam</span>
+            </button>
+          )}
         </div>
       </div>
 

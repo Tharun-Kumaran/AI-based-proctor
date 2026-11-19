@@ -383,10 +383,20 @@ public class ReportExportService {
      */
     @Transactional(readOnly = true)
     public byte[] exportCumulativeExamPdf(Long examId) {
+        return exportCumulativeExamPdf(examId, null, null);
+    }
+
+    @Transactional(readOnly = true)
+    public byte[] exportCumulativeExamPdf(Long examId, List<Long> scopedExamIds, Set<String> allowedStudentEmails) {
         Exam exam = examRepository.findById(examId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Exam not found: " + examId));
-        List<Long> relatedExamIds = getRelatedExamIds(exam);
-        List<ExamAttempt> attempts = attemptRepository.findByExamIdInOrderByStartTimeDesc(relatedExamIds);
+        List<Long> relatedExamIds = (scopedExamIds != null && !scopedExamIds.isEmpty())
+                ? scopedExamIds
+                : getRelatedExamIds(exam);
+        List<ExamAttempt> allAttempts = attemptRepository.findByExamIdInOrderByStartTimeDesc(relatedExamIds);
+        List<ExamAttempt> attempts = (allowedStudentEmails != null)
+                ? allAttempts.stream().filter(a -> allowedStudentEmails.contains(a.getStudentEmail().trim().toLowerCase())).toList()
+                : allAttempts;
 
         com.lowagie.text.Document doc = new com.lowagie.text.Document();
         ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -564,11 +574,21 @@ public class ReportExportService {
 
     @Transactional(readOnly = true)
     public byte[] exportExamQuestionCompletionPdf(Long examId) {
+        return exportExamQuestionCompletionPdf(examId, null, null);
+    }
+
+    @Transactional(readOnly = true)
+    public byte[] exportExamQuestionCompletionPdf(Long examId, List<Long> scopedExamIds, Set<String> allowedStudentEmails) {
         Exam exam = examRepository.findById(examId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Exam not found: " + examId));
 
-        List<Long> relatedExamIds = getRelatedExamIds(exam);
-        List<ExamAttempt> attempts = attemptRepository.findByExamIdInOrderByStartTimeDesc(relatedExamIds);
+        List<Long> relatedExamIds = (scopedExamIds != null && !scopedExamIds.isEmpty())
+                ? scopedExamIds
+                : getRelatedExamIds(exam);
+        List<ExamAttempt> allAttempts = attemptRepository.findByExamIdInOrderByStartTimeDesc(relatedExamIds);
+        List<ExamAttempt> attempts = (allowedStudentEmails != null)
+                ? allAttempts.stream().filter(a -> allowedStudentEmails.contains(a.getStudentEmail().trim().toLowerCase())).toList()
+                : allAttempts;
 
         com.lowagie.text.Document doc = new com.lowagie.text.Document(com.lowagie.text.PageSize.A4, 28, 28, 28, 28);
         ByteArrayOutputStream out = new ByteArrayOutputStream();
@@ -812,11 +832,21 @@ public class ReportExportService {
 
     @Transactional(readOnly = true)
     public byte[] exportExamWarningStrikesPdf(Long examId) {
+        return exportExamWarningStrikesPdf(examId, null, null);
+    }
+
+    @Transactional(readOnly = true)
+    public byte[] exportExamWarningStrikesPdf(Long examId, List<Long> scopedExamIds, Set<String> allowedStudentEmails) {
         Exam exam = examRepository.findById(examId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Exam not found: " + examId));
 
-        List<Long> relatedExamIds = getRelatedExamIds(exam);
-        List<ExamAttempt> attempts = attemptRepository.findByExamIdInOrderByStartTimeDesc(relatedExamIds);
+        List<Long> relatedExamIds = (scopedExamIds != null && !scopedExamIds.isEmpty())
+                ? scopedExamIds
+                : getRelatedExamIds(exam);
+        List<ExamAttempt> allAttempts = attemptRepository.findByExamIdInOrderByStartTimeDesc(relatedExamIds);
+        List<ExamAttempt> attempts = (allowedStudentEmails != null)
+                ? allAttempts.stream().filter(a -> allowedStudentEmails.contains(a.getStudentEmail().trim().toLowerCase())).toList()
+                : allAttempts;
 
         com.lowagie.text.Document doc = new com.lowagie.text.Document(com.lowagie.text.PageSize.A4, 28, 28, 28, 28);
         ByteArrayOutputStream out = new ByteArrayOutputStream();

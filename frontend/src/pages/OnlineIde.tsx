@@ -329,12 +329,12 @@ export default function OnlineIde() {
             </span>
           </div>
 
-          {/* Code Textarea & Gutter */}
-          <div className="flex-1 flex overflow-hidden relative min-h-[420px] lg:min-h-[600px] font-mono text-xs">
+          {/* Code Textarea & Gutter with Increased Legible Font Size */}
+          <div className="flex-1 flex overflow-hidden relative min-h-[420px] lg:min-h-[600px] font-mono text-sm">
             {/* Gutter */}
             <div 
               ref={gutterRef}
-              className="w-12 bg-slate-925 select-none text-slate-600 text-right pr-3 pt-3 leading-5 border-r border-slate-800/60 shrink-0 overflow-hidden"
+              className="w-14 bg-slate-925 select-none text-slate-500 text-right pr-3 pt-3 text-[14px] leading-6 border-r border-slate-800/80 shrink-0 overflow-hidden"
             >
               {lineNumbers.map((n) => (
                 <div key={n}>{n}</div>
@@ -363,7 +363,7 @@ export default function OnlineIde() {
               autoCapitalize="off"
               autoComplete="off"
               autoCorrect="off"
-              className="flex-1 w-full bg-slate-950 text-slate-100 p-3 leading-5 outline-none resize-none font-mono selection:bg-blue-600 selection:text-white tab-size-4"
+              className="flex-1 w-full bg-slate-950 text-slate-100 p-3 text-[14px] leading-6 outline-none resize-none font-mono selection:bg-blue-600 selection:text-white tab-size-4"
             />
           </div>
         </div>

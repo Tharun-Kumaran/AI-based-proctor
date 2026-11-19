@@ -122,6 +122,7 @@ export interface StartExamResponse {
   savedCodingAnswers?: Record<number, { code: string; language: string }>;
   isClass?: boolean;
   completedQuestionIds?: number[];
+  firstIncompleteQuestionIndex?: number;
   warningStrikes?: number;
   maxWarnings?: number;
 }

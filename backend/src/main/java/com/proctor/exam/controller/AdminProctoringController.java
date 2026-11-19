@@ -56,7 +56,7 @@ public class AdminProctoringController {
         if (auth == null) return;
         ExamAttempt attempt = attemptRepository.findById(attemptId)
                 .orElseThrow(() -> new ApiException(HttpStatus.NOT_FOUND, "Attempt not found."));
-        examAdminService.verifyExamAccess(attempt.getExam(), auth.getName());
+        examAdminService.verifyAttemptAccessForStaff(attempt, auth.getName());
     }
 
     @GetMapping("/system/ai-health")
@@ -93,9 +93,16 @@ public class AdminProctoringController {
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant from,
             @RequestParam(required = false) @DateTimeFormat(iso = DateTimeFormat.ISO.DATE_TIME) Instant to,
             Authentication auth) {
-        examAdminService.verifyExamAccess(examAdminService.getById(examId), auth != null ? auth.getName() : null);
-        List<Long> examIds = examAdminService.getRelatedExamIds(examId);
-        return eventService.getAttemptsWithEventSummary(examIds, studentEmail, severity, eventType, from, to);
+        String staffEmail = auth != null ? auth.getName() : null;
+        examAdminService.verifyExamAccess(examAdminService.getById(examId), staffEmail);
+        Set<String> allowedStudentEmails = examAdminService.getAllowedStudentEmailsForProfessor(examId, staffEmail);
+
+        // Professors only view their own exam, not unrelated merged exams
+        List<Long> examIds = examAdminService.isProfessorUser(staffEmail)
+                ? List.of(examId)
+                : examAdminService.getRelatedExamIds(examId);
+
+        return eventService.getAttemptsWithEventSummary(examIds, studentEmail, severity, eventType, from, to, allowedStudentEmails);
     }
 
     /**
@@ -194,7 +201,12 @@ public class AdminProctoringController {
         auditLogService.logAdmin(adminEmail, "EXPORT_CUMULATIVE_REPORT",
                 "Exported cumulative exam " + examId + " PDF report");
 
-        byte[] bytes = reportExportService.exportCumulativeExamPdf(examId);
+        Set<String> allowedStudentEmails = examAdminService.getAllowedStudentEmailsForProfessor(examId, adminEmail);
+        List<Long> scopedExamIds = examAdminService.isProfessorUser(adminEmail)
+                ? List.of(examId)
+                : examAdminService.getRelatedExamIds(examId);
+
+        byte[] bytes = reportExportService.exportCumulativeExamPdf(examId, scopedExamIds, allowedStudentEmails);
         String filename = "exam-" + examId + "-cumulative-results.pdf";
 
         return ResponseEntity.ok()
@@ -215,7 +227,12 @@ public class AdminProctoringController {
         auditLogService.logAdmin(adminEmail, "EXPORT_QUESTION_COMPLETION_REPORT",
                 "Exported exam " + examId + " question completion PDF report");
 
-        byte[] bytes = reportExportService.exportExamQuestionCompletionPdf(examId);
+        Set<String> allowedStudentEmails = examAdminService.getAllowedStudentEmailsForProfessor(examId, adminEmail);
+        List<Long> scopedExamIds = examAdminService.isProfessorUser(adminEmail)
+                ? List.of(examId)
+                : examAdminService.getRelatedExamIds(examId);
+
+        byte[] bytes = reportExportService.exportExamQuestionCompletionPdf(examId, scopedExamIds, allowedStudentEmails);
         String filename = "exam-" + examId + "-question-completion.pdf";
 
         return ResponseEntity.ok()
@@ -257,8 +274,19 @@ public class AdminProctoringController {
         auditLogService.logAdmin(adminEmail, "EXPORT_WARNING_STRIKES_REPORT",
                 "Exported exam " + examId + " warning strikes PDF report");
 
-        byte[] bytes = reportExportService.exportExamWarningStrikesPdf(examId);
+        Set<String> allowedStudentEmails = examAdminService.getAllowedStudentEmailsForProfessor(examId, adminEmail);
+        List<Long> scopedExamIds = examAdminService.isProfessorUser(adminEmail)
+                ? List.of(examId)
+                : examAdminService.getRelatedExamIds(examId);
+
+        byte[] bytes = reportExportService.exportExamWarningStrikesPdf(examId, scopedExamIds, allowedStudentEmails);
         String filename = "exam-" + examId + "-warning-strikes.pdf";
+
+        return ResponseEntity.ok()
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_PDF_VALUE)
+                .body(bytes);
+    }
 
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")

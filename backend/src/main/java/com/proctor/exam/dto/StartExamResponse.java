@@ -18,6 +18,7 @@ public record StartExamResponse(
         Map<Long, SavedCodeAnswer> savedCodingAnswers,
         Boolean isClass,
         List<Long> completedQuestionIds,
+        Integer firstIncompleteQuestionIndex,
         Integer warningStrikes,
         Integer maxWarnings
 ) {
