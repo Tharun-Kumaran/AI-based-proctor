@@ -68,6 +68,17 @@ public class ExamAdminService {
         this.riskEngine = riskEngine;
     }
 
+    public boolean isProfessorUser(String email) {
+        if (email == null || email.isBlank()) return false;
+        String e = email.trim().toLowerCase();
+        if (professorRepository.findByEmailIgnoreCase(e).isPresent()) {
+            return true;
+        }
+        return adminRepository.findByEmail(e)
+                .map(a -> "PROFESSOR".equalsIgnoreCase(a.getRole()))
+                .orElse(false);
+    }
+
     @Transactional
     public Exam createExam(CreateExamRequest req, String adminEmail) {
         if (!req.endAt().isAfter(req.startAt())) {

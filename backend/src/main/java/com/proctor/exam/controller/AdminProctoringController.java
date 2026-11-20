@@ -17,6 +17,7 @@ import java.io.IOException;
 import java.time.Instant;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @RestController
 @RequestMapping("/api/admin")
@@ -281,12 +282,6 @@ public class AdminProctoringController {
 
         byte[] bytes = reportExportService.exportExamWarningStrikesPdf(examId, scopedExamIds, allowedStudentEmails);
         String filename = "exam-" + examId + "-warning-strikes.pdf";
-
-        return ResponseEntity.ok()
-                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
-                .header(HttpHeaders.CONTENT_TYPE, MediaType.APPLICATION_PDF_VALUE)
-                .body(bytes);
-    }
 
         return ResponseEntity.ok()
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")

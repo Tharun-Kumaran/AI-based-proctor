@@ -57,6 +57,7 @@ public class SecurityConfig {
             .cors(cors -> cors.configurationSource(corsConfigurationSource()))
             .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
             .authorizeHttpRequests(auth -> auth
+                .requestMatchers(HttpMethod.OPTIONS, "/**").permitAll()
                 // Public: landing page data, exam listing, network time, student verification, admin login, unified auth
                 .requestMatchers(HttpMethod.GET, "/", "/api/exams/**").permitAll()
                 .requestMatchers(HttpMethod.POST, "/api/admin/auth/login", "/api/admin/auth/refresh", "/api/auth/login", "/api/auth/refresh").permitAll()
@@ -79,12 +80,24 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
-        List<String> origins = (allowedOrigins == null || allowedOrigins.isBlank())
-                ? List.of("http://localhost:5173", "https://localhost:5173", "https://localhost", "http://localhost")
-                : java.util.Arrays.stream(allowedOrigins.split(","))
-                        .map(String::trim)
-                        .filter(s -> !s.isEmpty())
-                        .toList();
+        java.util.List<String> origins = new java.util.ArrayList<>();
+        origins.add("http://localhost:5173");
+        origins.add("https://localhost:5173");
+        origins.add("http://localhost:3000");
+        origins.add("http://localhost:8080");
+        origins.add("https://ai-based-proctor.vercel.app");
+        origins.add("https://*.vercel.app");
+        origins.add("https://*.ngrok-free.dev");
+        origins.add("https://*.ngrok-free.app");
+        origins.add("https://*.ngrok.io");
+        if (allowedOrigins != null && !allowedOrigins.isBlank()) {
+            for (String origin : allowedOrigins.split(",")) {
+                String trimmed = origin.trim();
+                if (!trimmed.isEmpty() && !origins.contains(trimmed)) {
+                    origins.add(trimmed);
+                }
+            }
+        }
         config.setAllowedOriginPatterns(origins);
         config.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD"));
         config.setAllowedHeaders(List.of("*"));
