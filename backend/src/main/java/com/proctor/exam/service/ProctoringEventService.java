@@ -242,12 +242,28 @@ public class ProctoringEventService {
             Instant from,
             Instant to
     ) {
+        return getAttemptsWithEventSummary(examIds, studentEmail, severity, eventType, from, to, null);
+    }
+
+    @Transactional(readOnly = true)
+    public List<AdminAttemptSummaryResponse> getAttemptsWithEventSummary(
+            List<Long> examIds,
+            String studentEmail,
+            String severity,
+            String eventType,
+            Instant from,
+            Instant to,
+            Set<String> allowedStudentEmails
+    ) {
         org.springframework.data.jpa.domain.Specification<ExamAttempt> spec =
                 com.proctor.exam.repository.ExamAttemptSpecification.filter(examIds, studentEmail, severity, eventType, from, to);
         List<ExamAttempt> attempts = attemptRepository.findAll(spec);
         List<AdminAttemptSummaryResponse> results = new ArrayList<>();
 
         for (ExamAttempt a : attempts) {
+            if (allowedStudentEmails != null && !allowedStudentEmails.contains(a.getStudentEmail().trim().toLowerCase())) {
+                continue;
+            }
             List<Object[]> counts = eventRepository.countSeveritiesByAttemptId(a.getId());
             Map<String, Long> severityCounts = new HashMap<>();
             long total = 0;

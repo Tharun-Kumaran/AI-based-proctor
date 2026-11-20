@@ -419,6 +419,16 @@ public class StudentExamService {
             }
         }
 
+        // Determine the first incomplete question index so resumed student jumps straight to the next unanswered question
+        int firstIncompleteQuestionIndex = 0;
+        for (int idx = 0; idx < orderedQuestionIds.size(); idx++) {
+            Long qid = orderedQuestionIds.get(idx);
+            if (!completedQuestionIds.contains(qid)) {
+                firstIncompleteQuestionIndex = idx;
+                break;
+            }
+        }
+
         // Open or resume proctoring session
         proctoringSessionService.openSession(attempt.getId());
 
@@ -439,6 +449,7 @@ public class StudentExamService {
                 savedCodingAnswers,
                 Boolean.TRUE.equals(exam.getIsClass()),
                 completedQuestionIds,
+                firstIncompleteQuestionIndex,
                 warningStrikes,
                 maxWarnings
         );
