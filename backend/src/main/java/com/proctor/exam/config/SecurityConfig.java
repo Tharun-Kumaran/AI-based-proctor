@@ -76,7 +76,8 @@ public class SecurityConfig {
         return http.build();
     }
 
-    private CorsConfigurationSource corsConfigurationSource() {
+    @Bean
+    public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
         List<String> origins = (allowedOrigins == null || allowedOrigins.isBlank())
                 ? List.of("http://localhost:5173", "https://localhost:5173", "https://localhost", "http://localhost")

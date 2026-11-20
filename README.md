@@ -23,51 +23,24 @@ The platform couples high-throughput backend services with an asynchronous compu
 
 ## 🏛️ System Architecture
 
-AEPS is designed as a decoupled **3-tier microservice architecture** containerized via Docker and orchestrated through Docker Compose.
+AEPS is engineered around a decoupled, highly resilient multi-tier microservice architecture optimized for low-latency telemetry ingestion, robust candidate isolation, and fault tolerance during high-stakes institutional examinations.
 
-```mermaid
-flowchart TD
-    subgraph ClientLayer ["Client Presentation Tier"]
-        UI["Candidate & Admin Web Portal<br/>(React 19 + TypeScript + Vite + Tailwind CSS)"]
-    end
+### Architectural Breakdown
 
-    subgraph GatewayLayer ["Application & Orchestration Tier"]
-        BE["Core Backend API Gateway (:8080)<br/>(Spring Boot 3.3.4 / Java 21)"]
-        AUTH["Unified RBAC & JWT Engine<br/>(BCrypt, Memory Refresh Tokens, Role Switcher)"]
-        EXEC["Host Sandboxed Code Runner<br/>(.exec_sandbox - Python, Java, C, C++)"]
-        WARN["Warning Engine & Risk Accumulator<br/>(Exponential Time-Decay Model)"]
-        BE --- AUTH
-        BE --- EXEC
-        BE --- WARN
-    end
+| Tier | Component | Core Responsibilities & Technologies |
+| :--- | :--- | :--- |
+| **Presentation Tier** | Candidate & Admin Web Portals | • Built with **React 19**, **TypeScript**, **Vite**, and **Tailwind CSS**.<br/>• Real-time in-browser frame capture and Web Audio API vocal frequency analysis.<br/>• Sandboxed multi-language IDE with real-time feedback and execution HUD.<br/>• Dynamic Proctor HUD displaying live compliance alerts and risk status. |
+| **Application & Orchestration Tier** | Core Backend Gateway | • Built on **Spring Boot 3.3.4** and **Java 21**.<br/>• Centralized authentication, RBAC, and secure JWT token lifecycle management.<br/>• Multi-language sandboxed code execution pipeline (`.exec_sandbox`).<br/>• Exponential time-decay behavioral risk accumulation engine.<br/>• Institutional reporting, Flyway schema management, and automated export services. |
+| **Computer Vision & AI Tier** | AI Inference Microservice | • Powered by **FastAPI (Python 3.11+)**, **OpenCV**, **MediaPipe**, and **scikit-learn**.<br/>• 478 3D facial landmark detection and `SolvePnP` head pose estimation (Pitch, Yaw, Roll).<br/>• Iris coordinate tracking, gaze vector drift analysis, and secondary device detection.<br/>• Random Forest algorithmic problem classifier and Google Gemini assessment synthesis. |
+| **Persistence & Governance Tier** | Data & Audit Storage | • **PostgreSQL 16** with strict relational integrity and ACID guarantees.<br/>• Automated schema versioning and database evolution via **Flyway** (`V1` to `V23`).<br/>• Append-only immutable audit trail recording administrative actions and proctoring events. |
 
-    subgraph AILayer ["AI & Computer Vision Microservice (:8000)"]
-        FASTAPI["FastAPI Async Engine"]
-        CV["Face Mesh (478 3D Landmarks) & SolvePnP Head Pose"]
-        IRIS["Iris Landmarks & Gaze Vector Tracking"]
-        OBJ["Object Detector (Mobile Devices / Notes)"]
-        RF["Random Forest & Fallback Use-Case Classifier"]
-        GEMINI["Google Gemini Generative Hint & Question API"]
-        FASTAPI --- CV
-        FASTAPI --- IRIS
-        FASTAPI --- OBJ
-        FASTAPI --- RF
-        FASTAPI --- GEMINI
-    end
+### End-to-End System Workflow
 
-    subgraph DataLayer ["Persistence & Governance Tier"]
-        DB[("PostgreSQL 16 DB (:5432 / :5433)")]
-        FLYWAY["Flyway Schema Evolution<br/>(V1 through V23 Migrations)"]
-        AUDIT["Immutable Audit Log Store"]
-        DB --- FLYWAY
-        DB --- AUDIT
-    end
-
-    UI -->|"HTTPS / REST / WebSockets / JWT"| BE
-    UI -->|"Periodic Compressed Video Frames (Base64)"| BE
-    BE -->|"Internal HTTP Proxy (/v1/analyze/frame)"| FASTAPI
-    BE -->|"JPA / Hibernate ORM"| DB
-```
+1. **Authentication & Session Authorization:** Candidates authenticate through the Presentation Tier. The backend gateway verifies credentials using BCrypt and returns signed JWT access tokens with granular role-based permissions.
+2. **Live Telemetry Acquisition:** During an active exam, the client captures compressed video frames and audio FFT telemetry at scheduled intervals, dispatching them securely over HTTPS/TLS to the backend gateway.
+3. **Computer Vision Inference Pipeline:** The backend gateway routes incoming frames to the internal FastAPI microservice (`/v1/analyze/frame`), executing parallel facial landmark detection, gaze vector estimation, and anomaly detection.
+4. **Time-Decayed Behavioral Scoring:** Telemetry anomalies are scored using an exponential time-decay function. Sustained or severe infractions immediately increment candidate risk levels and dispatch real-time warning HUD events or proctor alerts.
+5. **Transactional Persistence & Audit Trail:** All infraction logs, session heartbeats, and exam events are transactionally committed to PostgreSQL, providing real-time oversight for faculty dashboards and tamper-evident forensic reporting.
 
 ---
 
