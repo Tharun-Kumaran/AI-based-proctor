@@ -24,7 +24,7 @@ public class SecurityConfig {
 
     private final JwtAuthFilter jwtAuthFilter;
 
-    @Value("${app.cors.allowed-origins:http://localhost:5173,https://localhost:5173,https://localhost,http://localhost}")
+    @Value("${app.cors.allowed-origins:http://localhost:5173,https://localhost:5173,https://localhost,http://localhost,https://ai-based-proctor.vercel.app,https://*.vercel.app}")
     private String allowedOrigins;
 
     @Value("${app.security.require-https:false}")
